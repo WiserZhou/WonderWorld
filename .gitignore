@@ -24,3 +24,5 @@ output/
 .secret
 *.splat
 pretrained/
+download.sh
+qit-sync.sh
