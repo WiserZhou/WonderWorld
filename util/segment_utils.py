@@ -139,14 +139,33 @@ def create_mask_generator():
     return mask_generator
 
 def create_mask_generator_repvit():
+    """
+    Creates and configures a RepViT-SAM automatic mask generator.
+    
+    This function initializes a RepViT-SAM model for automatic mask generation with optimized parameters.
+    RepViT-SAM is a lightweight version of the Segment Anything Model (SAM).
+    
+    Returns:
+        SamAutomaticMaskGenerator: Configured mask generator instance
+    """
+    # Import required modules from RepViT-SAM implementation
     from repvit_sam import SamAutomaticMaskGenerator, sam_model_registry
+    
+    # Define model checkpoint path and architecture type
     sam_checkpoint = "repvit_sam.pt"
     model_type = "repvit"
 
+    # Initialize the RepViT-SAM model
     repvit_sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+    # Move model to GPU for faster inference
     repvit_sam = repvit_sam.to(device='cuda')
+    # Set model to evaluation mode
     repvit_sam.eval()
 
+    # Configure and create the automatic mask generator with specific parameters:
+    # - points_per_side=16: Grid size for sampling points (smaller than original SAM for efficiency)
+    # - pred_iou_thresh=0.86: Minimum predicted IoU score for a mask to be accepted
+    # - stability_score_thresh=0.9: Minimum stability score for a mask to be accepted
     mask_generator = SamAutomaticMaskGenerator(
         model=repvit_sam,
         points_per_side=16,

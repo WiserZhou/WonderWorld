@@ -43,6 +43,16 @@ pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"
 pip install submodules/depth-diff-gaussian-rasterization-min/
 pip install submodules/simple-knn/
 ```
+If you haven't installed mamba, you can install it by:
+```bash
+conda install mamba -c conda-forge
+conda config --add channels conda-forge
+```
+
+If you haven't installed glm, you can install it by:
+```bash
+conda install -c conda-forge glm
+```
 
 Install the rest of the requirements:
 
@@ -56,6 +66,11 @@ Export your OpenAI api_key (If you want to use GPT-4 to generate scene descripti
 
 ```bash
 export OPENAI_API_KEY='your_api_key_here'
+```
+
+Else, set
+```bash
+export OPENAI_API_KEY=''
 ```
 
 Download RepViT model and put it to the root directory.

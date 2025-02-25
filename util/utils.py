@@ -26,23 +26,71 @@ from torchvision.transforms.functional import gaussian_blur
 from scene.cameras import Camera
 
 def convert_pt3d_cam_to_3dgs_cam(pt3d_cam: PerspectiveCameras, xyz_scale=1):
+    """
+    Convert a PyTorch3D camera to a 3DGS camera format.
+    
+    Args:
+        pt3d_cam (PerspectiveCameras): Input PyTorch3D camera object
+        xyz_scale (float): Scale factor for the camera translation vector
+    
+    Returns:
+        Camera: A 3DGS camera object with converted parameters
+    """
+    # Get the world-to-view transform matrix from PyTorch3D camera
+    # PyTorch3D camera's get_world_to_view_transform() returns a Transform3d object
+    # get_matrix() converts it to a 4x4 homogeneous transformation matrix
+    # [0] gets the first (and only) matrix since PyTorch3D supports batched cameras
+    # The matrix maps points from world coordinates to view/camera coordinates
     transform_matrix_pt3d = pt3d_cam.get_world_to_view_transform().get_matrix()[0]
+    
+    # Convert to world-to-camera matrix by transposing
+    # PyTorch3D's transform matrix maps world points to view coordinates using matrix multiplication:
+    # x_view = transform_matrix_pt3d @ x_world
+    # However, we need the world-to-camera matrix in the standard computer graphics convention:
+    # x_camera = x_world @ transform_matrix_w2c
+    # To convert between these conventions, we transpose the matrix
+    # This effectively changes from left multiplication (PyTorch3D) to right multiplication (standard)
     transform_matrix_w2c_pt3d = transform_matrix_pt3d.transpose(0, 1)
+    
+    # Scale the translation component
+    # Pytorch3D's transformaiton metric is 4×4, and the last column is transition vector
     transform_matrix_w2c_pt3d[:3, 3] *= xyz_scale
+    
+    # Convert world-to-camera matrix to camera-to-world matrix by computing its inverse
+    # The world-to-camera matrix maps points from world space to camera space: x_camera = x_world @ transform_matrix_w2c
+    # The camera-to-world matrix does the opposite mapping: x_world = x_camera @ transform_matrix_c2w
+    # These matrices are inverses of each other since they perform opposite transformations
+    # We use .inverse() to compute this inverse transformation matrix
     transform_matrix_c2w_pt3d = transform_matrix_w2c_pt3d.inverse()
+    
+    # Create conversion matrix from OpenGL to PyTorch3D coordinate system
     opengl_to_pt3d = torch.diag(torch.tensor([-1., 1, -1, 1], device=torch.device('cuda')))
+    
+    # Convert to OpenGL camera-to-world matrix
     transform_matrix_c2w_opengl = transform_matrix_c2w_pt3d @ opengl_to_pt3d
+    
+    # Convert to numpy array via list
     transform_matrix = transform_matrix_c2w_opengl.cpu().numpy().tolist()
     c2w = np.array(transform_matrix)
+    
+    # Flip Y and Z axes
     c2w[:3, 1:3] *= -1
+    
+    # Get world-to-camera matrix
     w2c = np.linalg.inv(c2w)
+    
+    # Extract rotation matrix (transposed for CUDA compatibility) and translation vector
     R = np.transpose(w2c[:3,:3])  # R is stored transposed due to 'glm' in CUDA code
     T = w2c[:3, 3]
+    
+    # Calculate field of view from camera intrinsics
     focal_length = pt3d_cam.K[0, 0, 0].item()
     half_img_size_x = pt3d_cam.K[0, 0, 2].item()
     fovx = 2*np.arctan(half_img_size_x / focal_length)
     half_img_size_y = pt3d_cam.K[0, 1, 2].item()
     fovy = 2*np.arctan(half_img_size_y / focal_length)
+    
+    # Create and return 3DGS camera object
     tdgs_cam = Camera(R=R, T=T, FoVx=fovx, FoVy=fovy)
     return tdgs_cam
 
